@@ -21,14 +21,23 @@ def summarize_articles_by_topic(topic):
         for article in articles:
             title = article.get("title")
             link = article.get("url")
-            raw_content = article.get("content") or article.get("description") or article.get("title")
-
-            if not raw_content:
-                print(f"⚠️ Skipping: No content found for article: {title}")
+            if not link:
+                print(f"⚠️ Skipping article with no URL: {title}")
                 continue
 
             try:
-                summary = summarizer(raw_content[:1024])[0]['summary_text']
+                # Fetch full page HTML
+                html = requests.get(link, timeout=10).text
+                soup = BeautifulSoup(html, 'html.parser')
+                paragraphs = soup.find_all('p')
+                text = ' '.join(p.get_text() for p in paragraphs)
+                content = text[:2048]  # summarizer input length cap
+
+                if not content or len(content) < 200:
+                    print(f"⚠️ Skipping: Insufficient content for article: {title}")
+                    continue
+
+                summary = summarizer(content)[0]['summary_text']
                 sentiment = sentiment_analyzer(summary)[0]
 
                 result.append({
@@ -50,6 +59,7 @@ def summarize_articles_by_topic(topic):
     except Exception as e:
         print(f"❌ Error fetching articles: {e}")
         return [{"error": "Failed to fetch articles from News API"}]
+
 
 def summarize_article_by_url(url):
     try:
